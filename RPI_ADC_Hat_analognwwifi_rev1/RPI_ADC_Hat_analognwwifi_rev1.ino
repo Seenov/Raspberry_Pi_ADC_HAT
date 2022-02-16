@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  * */
- */
+
 /*Program & Source Code: Raspberry Pi ADC with ESP32C3
   The Program is designed to follow the below steps.
 
@@ -122,7 +122,7 @@ char channel_number;
 int chan_enable[6]= {1,1,1,1,1,1};
 char NumOfSamples_per_Avrg[6]={16,16,16,16,16,16};
 int  msBetweenSamples[6]={10000,0,0,0,0,0};
-char chan_att[6];
+int  chan_att[6];
 int  chan_coversionResults[6];
 int  chan_avrgResults[6]={0,0,0,0,0,0};
 char counting[6] = {0, 0, 0, 0, 0, 0,};
@@ -151,7 +151,7 @@ IPAddress ReceivedFromIP;
 IPAddress ip;
 
 #define INTERVAL_1 5000
-#define INTERVAL_2 7000
+#define INTERVAL_2 86400000  // adc2_0   set to 24hrs
 #define INTERVAL_3 11000
 #define INTERVAL_4 9000
 
@@ -328,7 +328,15 @@ void setup()
             chan_enable[5] = (int)doc_r["ench5"]-99;
            
 
-       // Set attenuatio TBD
+       /****************************************************
+        *  tbd 
+        *     Set attenuation TBD
+        *     
+         chan_att[0] = (int) doc_r[" xxx0"];    xx0 needs to be defined in Node-Red
+         chan_att[1] = (int) doc_r[" xxx1"];
+           etc for remaining channels
+
+        *******************************************************/    
 
         }
         }
@@ -350,7 +358,7 @@ void setup()
    
   
  /**********************************************************************
-  * 
+  *   tbd   configured from Node-red messages see earlier lines 332 and later lines 798
   *    Init all adc channels adc1 and adc 2
   *    ADC2 tbd
   *    
@@ -383,9 +391,9 @@ void loop() {
 
  
   /****************************************
-   * 
-   * Function to force reboot by software
-   * To be tested
+   * tbd
+   * Function to force get new chredentials by software
+   * Add Node-red object  that will be decoded 
    * 
    ***************************************/
   if (softReboot == 1)
@@ -397,6 +405,18 @@ void loop() {
     digitalWrite(GPIO_LED, LOW);
   }
   
+     /****************************************
+   * tbd
+   * Function for over the air programming
+   *  
+   * 
+   ***************************************/
+     /*
+      * ???
+      */
+
+
+
   
  
 
@@ -445,6 +465,7 @@ void loop() {
   
 
   /***************************************************************
+   * tbd fix bug  aanalogReadMillivolts  is not using calibration settings
    * 
    * Do conversions for active channels 0 to 4 (ADC 1)
    * Sum 16 conversions per enabled channel 
@@ -490,14 +511,23 @@ void loop() {
       if(millis() >= time_2 + INTERVAL_2){
         time_2 +=INTERVAL_2;
         /***********************
-         * gub in  ESP32 Arduino
+         *  TBD   fix bug   ADc2_ch0  does not work creates reboot
+         *   note chan enable [5], chan sum[5]  etc are adc2_0
          */
         /* 
+         *  
+         if (chan_enable[5]==1)  // if active convert
+        {
         WiFi.disconnect(); // ensure a clean start
-        //adcAttachPin(5);              //confirm how to do this for ADC2 ch0
-        //analogSetPinAttenuation(5, ADC_11db);  // confirm how to do this for ADC2 ch0
-        //E (21051) ADC: adc1_config_channel_atten(475) :ADCADC_NUM_1 channel error
-
+        adcAttachPin(5);              //confirm how to do this for ADC2 ch0
+        analogSetPinAttenuation(5, ADC_11db);  // confirm how to do this for ADC2 ch0
+        for (char samples1=0; samples1<NumOfSamples_per_Avrg[0]; samples1++)
+        {
+            chan_summ[5]+=analogReadMilliVolts(5);
+        }
+        chan_avrgResults[5]= chan_summ[5]/NumOfSamples_per_Avrg[0];
+        chan_summ[5]=0;
+      
         //Serial.println(analogReadMilliVolts(5));
         for (int i = 0; i < 32; ++i)
         {
@@ -509,6 +539,8 @@ void loop() {
         }
         WiFi.begin(esid.c_str(), epass.c_str());
         WiFi.mode(WIFI_STA);
+        }
+        
         */
      }
    
@@ -757,6 +789,7 @@ void myitoa()
 }
 
 /*******************************************************************
+*   tbd
 *   Functions called  to init adc1
 *   also called every time there is a change
 *   of config from a UDP message
