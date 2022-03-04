@@ -12,3 +12,4 @@ In the root directory the file "esp32c3setup arduino" show the setting under Too
 There is a problem with the Arduino implementation of th ADC for the ESP32 see issue https://github.com/espressif/arduino-esp32/issues/5502  scrool to
 https://github.com/espressif/arduino-esp32/issues/5502#issuecomment-1038255676
 The file single_read.c is a modified  example of the esp32-idf where the ADC works perfectly.
+A modified version of https://github.com/madhephaestus/ESP32AnalogRead in the folder ESP32C3AnalogRead provides a calibrated voltage output for ADC1. ADC2 still under development. Add the library and replace the 2 files with the files in the above mentionned folder.
