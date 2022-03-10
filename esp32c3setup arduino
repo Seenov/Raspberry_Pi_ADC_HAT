@@ -4,6 +4,6 @@ cpu freq 160Mhz
 flash frew 80 Mhz
 flash mode dio
 flash size 2 Mbytes
-partition no OAT 2Mb
+partition 1.9Mb with OTA
 
 
