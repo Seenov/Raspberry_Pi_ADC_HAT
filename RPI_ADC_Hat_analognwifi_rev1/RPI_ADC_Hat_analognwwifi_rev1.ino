@@ -58,24 +58,30 @@ SOFTWARE.
            batt voltage
   data:    16 bit results
    
+Json messages from Node-Red
+init message
+device1={type:"ADC1",ip:"0.0.0.0",name:"new module",category:"init",ch0:0,ch1:0,ch2:0,ch3:0,ch4:0,ch5:0,out1:0,out2:0,out3:0,link:"down"};
 
-  Query from RPI will look like this: char json[] = "{\"type\":\"conf\",\"ch\":0,\"enable\":1,\"bits\":12,\"samples\":1,\"att\":\"ADC_11db\",\"msec\":0,}";
-  response will look like this
+settings message
+payload: object
+type: "ADC1"
+name: "Mydev"
+category: "setting"
+ench0: 100
+ench1: 100
+ench2: 100
+ench3: 100
+ench4: 100
+ench5: 99
+delay: 100
+ota: 10
+dac: 0
+led2: 0
+io7: 1
+io18: 1
+io19: 1
 
-
-  type = conf config, query or LP low power mode
-  response from ADC to aconfig
-  char json2[] = "{\"type\":\"conf\",\"msg\":\"OK\"}";
-   response to a conf
-   type:  conf
-    msg:    "OK", or "error msg"
-
-   responce to query
-   char json2[] = "{\"type\":\"query\",\"data\":\"ADC_x data\",\"msg\":\"chan number\" }";
-   type: query
-   data: conversion results 16 bits
-   msg: error message  or channel number
-   
+ 
    revision history
    14 Jan 2022  fixed getting credeentials form web page aswitching to station mode once finished
    need to add possibility of reset credentials with GPIO or message rev 0.1 to 0.5
@@ -96,25 +102,42 @@ SOFTWARE.
    Made some progress json decoding verry tricky, if the proprety does not exist, you get unpredictable results
    including reboot
    6 feb works, release 1.0
-   
+   ch0 1065   ch1  889   ch2 711   ch3 534    ch4 357   ch5 178
    
 */
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <EEPROM.h>
 #include <WiFiClient.h>
+#include <WiFiAP.h>
 #include <WebServer.h>
 #include "AsyncUDP.h"
-#include <AsyncTCP.h>
+//#include <AsyncTCP.h>
 #include <ESPmDNS.h>
 #include "ArduinoJson.h"
 //#include <NoDelay.h>
 #include <Update.h>
-//#include "EEPROM.h"
+#include <esp32-hal-adc.h>
+#include <Arduino.h>
+#include "esp_adc_cal.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/adc_common.h"
+#include <Update.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/adc_common.h"
+//=================================
 
 //Variables
 uint8_t i = 0;
-uint8_t GPIO_LED = 8;
+
 uint8_t LED_state = 1;
 uint8_t AccesPointMode = 0;
 uint8_t testBufffer[8] = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -124,11 +147,16 @@ char NumOfSamples_per_Avrg[6]={16,16,16,16,16,16};
 int  msBetweenSamples[6]={10000,0,0,0,0,0};
 int  chan_att[6];
 int  chan_coversionResults[6];
+static int adc_raw[6]={0,0,0,0,0,0};
 int  chan_avrgResults[6]={0,0,0,0,0,0};
 char counting[6] = {0, 0, 0, 0, 0, 0,};
 double  chan_summ[6];
 char channelToRead = 0;
+char ADC2_ch0_samples=0;
+char do_once=0;
 int statusCode;
+int ij=0;
+int DAC_setting=0;
 const char* ssid = "Seenov24_2_4";
 const char* password = "bandittaichi";
 String localwifissid= "..................................."; // reserve 35 characters
@@ -136,8 +164,8 @@ String localwifipsw= "...................................";
 String st;
 String content;
 String esid;
-String hostname = "SEENOV";
-const char* host = "seenov";
+String hostname = "esp32c3_adc";
+const char* host = "esp32c3_adc";
 String epass = "";
 char rebootNow = 0;
 char softReboot = 0;
@@ -149,12 +177,27 @@ char temp_string[255] = {};
 String testmac = "3c:61:05:0c:85:a0";
 IPAddress ReceivedFromIP;
 IPAddress ip;
-
+int verbosePrint= 20000;
 #define INTERVAL_1 5000
-#define INTERVAL_2 86400000  // adc2_0   set to 24hrs
-#define INTERVAL_3 11000
+#define INTERVAL_2 10000   // adc2_0  low priority slow signal
+#define INTERVAL_3 100    // blinking
 #define INTERVAL_4 9000
-
+#define GPIO_LED   8
+#define GPIO_LED2  10
+#define DAC        6
+#define GPIO_7     7
+#define GPIO_18   18
+#define GPIO_19   19
+int LED2_low_high = 0;
+int GPIO_7_value=0;
+int GPIO_18_value=0;
+int GPIO_19_value=0;
+//ADC Attenuation
+#define ADC_ATTEN           ADC_ATTEN_DB_11
+//ADC Calibration
+#define ADC_CALI_SCHEME     ESP_ADC_CAL_VAL_EFUSE_TP
+#define OTA_Key 1234     // key to start OTA firmware update
+int OTA=0;             // value read from UDP message
 StaticJsonDocument<1000> doc_r;
 StaticJsonDocument<1000> doc_s;
 char  fromString[210];   // for udp send
@@ -176,7 +219,108 @@ void blinkLED();
 WebServer server(80);   // used to input network credentials 
 AsyncUDP udp;
 
+//====================================
+/*
+ * Login page  for OTA
+ */
 
+const char* loginIndex =
+ "<!DOCTYPE html> <html>  <head><meta name=  'viewport  ' content=  'width=device-width, initial-scale=1.0, user-scalable=no  '>  "
+ "<title>ESP WiFi Manager</title>   <style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}"
+ "body{margin-top: 50px;} h1 {color: #444444;margin: 30px auto 30px;}   h3 {color: #ffffff;margin-bottom: 50px;}   label{display:inline-block;width: 160px;text-align: center;font-size: 1.5rem; font-weight: bold;color: #ffffff;}"
+"form{margin: 0 auto;width: 360px;padding: 1em;border: 1px solid #CCC;border-radius: 1em; background-color: #077c9f;}    input {margin: 0.5em;font-size: 1.5rem; } "
+ " .styled {    border: 0;    line-height: 2.5;    padding: 0 20px;    font-size: 1.5rem;    text-align: center;    color: #fff;    text-shadow: 1px 1px 1px #000; "
+ "  border-radius: 10px;    background-color: rgba(220, 0, 0, 1);    background-image: linear-gradient(to top left,  rgba(0, 0, 0, .2), rgba(0, 0, 0, .2) 30%, "
+ "  rgba(0, 0, 0, 0));    box-shadow: inset 2px 2px 3px rgba(255, 255, 255, .6),   inset -2px -2px 3px rgba(0, 0, 0, .6);.styled:hover {   background-color: rgba(255, 0, 0, 1);} "
+".styled:active {    box-shadow: inset -2px -2px 3px rgba(255, 255, 255, .6), inset 2px 2px 3px rgba(0, 0, 0, .6);}  </style>"  
+" <meta charset=  'UTF-8  '>    </head>   <body>   <h1>Welcome to ADC1 Firmware Update</h1>    <h1>Login Page</h1> " 
+"   <form name = 'loginForm' method='get' action='setting'> <div><label>Username</label> <input type ='text' name= 'userid' length= 32></div>"  
+"  <div><label>Password </label> <input type = 'Password' name=  'pwd'  length= 32></div>  "
+" <h3>Please Double Check Before Saving</h3>   "
+"<button class= 'favorite styled ' type= 'submit' onclick='check(this.form)' value='Login'> SUBMIT</button> </form> " 
+
+"<script>"
+    "function check(form)"
+    "{"
+    "if(form.userid.value=='admin' && form.pwd.value=='admin')"
+    "{"
+    "window.open('/serverIndex')"
+    "}"
+    "else"
+    "{"
+    " alert('Error Password or Username')/*displays error message*/"
+    "}"
+    "}"
+"</script>"
+" </body>  </html> ";
+
+
+/*
+ * Server Index Page for OTA
+ */
+
+const char* serverIndex =
+"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
+"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
+   "<input type='file' name='update'>"
+        "<input type='submit' value='Update'>"
+    "</form>"
+ "<div id='prg'>progress: 0%</div>"
+ "<script>"
+  "$('form').submit(function(e){"
+  "e.preventDefault();"
+  "var form = $('#upload_form')[0];"
+  "var data = new FormData(form);"
+  " $.ajax({"
+  "url: '/update',"
+  "type: 'POST',"
+  "data: data,"
+  "contentType: false,"
+  "processData:false,"
+  "xhr: function() {"
+  "var xhr = new window.XMLHttpRequest();"
+  "xhr.upload.addEventListener('progress', function(evt) {"
+  "if (evt.lengthComputable) {"
+  "var per = evt.loaded / evt.total;"
+  "$('#prg').html('progress: ' + Math.round(per*100) + '%');"
+  "}"
+  "}, false);"
+  "return xhr;"
+  "},"
+  "success:function(d, s) {"
+  "console.log('success!')"
+ "},"
+ "error: function (a, b, c) {"
+ "}"
+ "});"
+ "});"
+ "</script>";
+
+static esp_adc_cal_characteristics_t adc1_chars;
+static esp_adc_cal_characteristics_t adc2_chars;
+
+static bool adc_calibration_init(void)
+{
+    esp_err_t ret;
+    bool cali_enable = false;
+
+    ret = esp_adc_cal_check_efuse(ADC_CALI_SCHEME);
+    if (ret == ESP_ERR_NOT_SUPPORTED) {
+        Serial.println( "Calibration scheme not supported, skip software calibration");
+    } else if (ret == ESP_ERR_INVALID_VERSION) {
+        Serial.println( "eFuse not burnt, skip software calibration");
+    } else if (ret == ESP_OK) {
+        cali_enable = true;
+        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN, ADC_WIDTH_BIT_12, 0, &adc1_chars);
+        esp_adc_cal_characterize(ADC_UNIT_2, ADC_ATTEN, ADC_WIDTH_BIT_12, 0, &adc2_chars);
+    } else {
+        Serial.println("Invalid arg");
+    }
+
+    return cali_enable;
+}
+ bool cali_enable = adc_calibration_init();
+//=======================================
 
 void setup()
 {
@@ -191,6 +335,12 @@ void setup()
   
   pinMode(GPIO_LED, OUTPUT);
   digitalWrite(GPIO_LED, HIGH);   // off
+  pinMode(GPIO_LED2, OUTPUT);
+  digitalWrite(GPIO_LED2, LOW);   // off
+  pinMode(DAC, OUTPUT);
+  pinMode(GPIO_7, OUTPUT);  // can be redefined as inputs
+  pinMode(GPIO_18, OUTPUT); // can be redefined as inputs
+  pinMode(GPIO_19, OUTPUT); // can be redefined as inputs
   Serial.println();
   Serial.println();
   Serial.println("Startup");
@@ -203,7 +353,7 @@ void setup()
   {
     esid += char(EEPROM.read(i));
   }
-  //esid="test";  // Used for testing to force bad ssid and psw
+  //esid="test";  // Used for testing to force bad ssid and psw forcing AccessPoint mode
   Serial.println();
   Serial.print("SSID:");
   Serial.println(esid);
@@ -226,9 +376,9 @@ void setup()
   WiFi.mode(WIFI_STA);
   WiFi.macAddress(mac1); // returns mac address
   
-  char temp = 30;    // seconds tying to connect
+  char temp = 10;    // seconds tying to connect
 
-  //  wait up to 30 sec  for connection
+  //  wait up to 10 sec  for connection
   while ((WiFi.status() != WL_CONNECTED)  && (temp > 0) )
   {
     Serial.print("nc");  // no connection
@@ -274,23 +424,19 @@ void setup()
         //Serial.print(packet.localIP());
         //Serial.print(":");
         //Serial.print(packet.localPort());
-        Serial.print(", Length: ");
-        Serial.print(packet.length());
-        Serial.println(", Data: ");
-        Serial.write(packet.data(), packet.length());
-        Serial.println();
-        // read packet and take action
-        //ReceivedFromIP = packet.remoteIP();
-
-        packet.printf("Got %u bytes of data", packet.length());
+        if(verbosePrint) 
+        {
+         Serial.print(", Length: ");
+         Serial.print(packet.length());
+         Serial.println(", Data: ");
+         Serial.write(packet.data(), packet.length());
+         Serial.println();
+         packet.printf("Got %u bytes of data", packet.length());
+        }
         //parse json msg  after copy to buff
-       
         char tempBuff[packet.length()+10];
         memcpy(tempBuff, packet.data(), packet.length());
-       
         DeserializationError error = deserializeJson(doc_r, tempBuff);
-        
-         
         if (error) {
           Serial.print(F("deserializeJson() failed with code "));
           Serial.println(error.f_str());
@@ -303,23 +449,28 @@ void setup()
     ****************************************************/
          const char* type1 = doc_r["type"];
          const char* ADC = "ADC1";
-         Serial.println(type1);
-         if (strcmp(type1,  ADC)==0 )
-        {
-            Serial.println("received request for connection");
-             UDP_ch_active=1;
-        }
-            
          const char* category = doc_r["category"];
-         const char* settingstype = "settings";
-         Serial.println(category);
+         const char* settingstype = "setting";
+         const char* init_type = "init";
+         if (verbosePrint){Serial.println(category);}   // setting or init
+         if (strcmp(category, init_type)==0 )
+        {
+            Serial.println("Received Connection Init");
+            Serial.println(type1);
+            if (strcmp(type1,  ADC)==0 )
+            {
+                Serial.println("UDP Channel open");
+                UDP_ch_active=1;
+            }
+        }
+   
          if (strcmp(category,  settingstype)==0 )
         {
-            Serial.println("received settings");
+           if(verbosePrint){ Serial.println("received settings");}
            // delay between sample bursts
            msBetweenSamples[0]=(int)doc_r["delay"];  //only one delay for all channels
+            
             // Enable / disable channels 
-         
             chan_enable[0] = (int)doc_r["ench0"]-99;
             chan_enable[1] = (int)doc_r["ench1"]-99;
             chan_enable[2] = (int)doc_r["ench2"]-99;
@@ -327,27 +478,48 @@ void setup()
             chan_enable[4] = (int)doc_r["ench4"]-99;
             chan_enable[5] = (int)doc_r["ench5"]-99;
            
+            //  start Over the air firmare update
+            OTA = (int)doc_r["ota"];
+            if(verbosePrint){
+            Serial.print("OTA=  ");
+            Serial.println(OTA);
+            }
+            // DAC Setting set DAC pwm value
+            DAC_setting = (int)doc_r["dac"];
+            analogWrite(DAC, DAC_setting);
+            //LED2  active high
+            LED2_low_high = (int)doc_r["led2"];
+            digitalWrite(GPIO_LED2, LED2_low_high); 
+            // Digital outputs
+            GPIO_7_value=(int)doc_r["io7"];
+            digitalWrite(GPIO_7, GPIO_7_value); 
+            GPIO_18_value=(int)doc_r["io18"];
+            digitalWrite(GPIO_18, GPIO_18_value);
+            GPIO_19_value= (int)doc_r["io19"];
+            digitalWrite(GPIO_19, GPIO_19_value);
+
 
        /****************************************************
-        *  tbd 
-        *     Set attenuation TBD
+        *  The attenuation is fixed at 11 db
+        *  Set attenuation with Node-Red TBD
         *     
-         chan_att[0] = (int) doc_r[" xxx0"];    xx0 needs to be defined in Node-Red
-         chan_att[1] = (int) doc_r[" xxx1"];
-           etc for remaining channels
-
+        * chan_att[0] = (int) doc_r[" xxx0"];     
+        * chan_att[1] = (int) doc_r[" xxx1"];
+        *   etc for remaining channels
+        *
         *******************************************************/    
-
+            
         }
+        
         }
-
+          
       });
+      
     }
   
-
   // Print usefull information for debugging
   String mac2 = (String)WiFi.macAddress() ;
-  Serial.print("ESP Board MAC Address:  ");
+  Serial.print("ADC Board MAC Address:  ");
   Serial.println(mac2);
   if(AccesPointMode ==0)
   {
@@ -358,34 +530,30 @@ void setup()
    
   
  /**********************************************************************
-  *   tbd   configured from Node-red messages see earlier lines 332 and later lines 798
-  *    Init all adc channels adc1 and adc 2
-  *    ADC2 tbd
+  *   
+  *     ADC1&2 config fixed bit width and fixed attenuation
+  *    tbd   configure attenuation from Node-red messages 
   *    
   ************************************************************************/
-  adcAttachPin(0);
-  adcAttachPin(1);
-  adcAttachPin(2);
-  adcAttachPin(3);
-  adcAttachPin(4);
- // adcAttachPin(5);              //confirm how to do this for ADC2 ch0
-  analogSetPinAttenuation(0, ADC_11db);
-  analogSetPinAttenuation(1, ADC_11db);
-  analogSetPinAttenuation(2, ADC_11db);
-  analogSetPinAttenuation(3, ADC_11db);
-  analogSetPinAttenuation(4, ADC_11db);
-  //analogSetPinAttenuation(5, ADC_11db);  // confirm how to do this for ADC2 ch0
-
-}
+   
+    ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_12));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_1, ADC_ATTEN));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_2, ADC_ATTEN));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_3, ADC_ATTEN));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN));
+    //ADC2 config
+    ESP_ERROR_CHECK(adc2_config_channel_atten(ADC2_CHANNEL_0, ADC_ATTEN));
+ }
 
 
 void loop() {
 
 
-  if (AccesPointMode == 1)
+ if (AccesPointMode == 1)
   {
    // blinking.update();
-    server.handleClient();
+   
    
   }
 
@@ -395,7 +563,7 @@ void loop() {
    * Function to force get new chredentials by software
    * Add Node-red object  that will be decoded 
    * 
-   ***************************************/
+   ***************************************
   if (softReboot == 1)
   {
     softReboot = 0;
@@ -404,58 +572,115 @@ void loop() {
     AccesPointMode = 1;
     digitalWrite(GPIO_LED, LOW);
   }
+  */
   
-     /****************************************
-   * tbd
-   * Function for over the air programming
+   /**********************************************
    *  
+   * Function for over the air programming
+   * In Node-Red push OTA button 
+   * Go to web page  http://esp32c3_adc.local 
+   * login user: admin psw: admin
    * 
-   ***************************************/
-     /*
-      * ???
-      */
+   ***********************************************/
+      if((OTA == OTA_Key) &&(do_once==0))
+      {
+           do_once=1;
+             /*use mdns for host name resolution*/
+              if (!MDNS.begin(host)) { //http://esp32c3_adc.local
+                Serial.println("Error setting up MDNS responder!");
+                while (1) {
+                  Serial.print("+");
+                  delay(1000);
+                }
+              }
+              server.begin();
+              Serial.println("mDNS responder started");
+              /*return index page which is stored in serverIndex */
+              server.on("/", HTTP_GET, []() {
+                server.sendHeader("Connection", "close");
+                server.send(200, "text/html", loginIndex);
+              });
+              server.on("/serverIndex", HTTP_GET, []() {
+                server.sendHeader("Connection", "close");
+                server.send(200, "text/html", serverIndex);
+              });
+              /*handling uploading firmware file */
+              server.on("/update", HTTP_POST, []() {
+                server.sendHeader("Connection", "close");
+                server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+                ESP.restart();
+              }, []() {
+                HTTPUpload& upload = server.upload();
+                if (upload.status == UPLOAD_FILE_START) {
+                  Serial.printf("Update: %s\n", upload.filename.c_str());
+                  if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+                    Update.printError(Serial);
+                  }
+                } else if (upload.status == UPLOAD_FILE_WRITE) {
+                  /* flashing firmware to ESP*/
+                  if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                    Update.printError(Serial);
+                  }
+                } else if (upload.status == UPLOAD_FILE_END) {
+                  if (Update.end(true)) { //true to set the size to the current progress
+                    Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                  } else {
+                    Update.printError(Serial);
+                  }
+                }
+              });
+              
+            
+      }
 
-
+     if(OTA == OTA_Key){
+            server.handleClient();
+            delay(1);
+       }
 
   
- 
-
     /*****************************************************************************
     * 
-    *    Create and Send udp json packet with ADC values  in int32 mV format
-    *    samples are average of 16 samples  
-    *    important no output untill receive from udp to find ip and port to send to
-    *    2 json doc  doc_r receive  and doc_s send
+    *    Create and Send udp json packet with ADC values in int32 mV format
+    *    samples are averages of 16 samples  
+    *    Important no output until receive from udp to find ip of destination send to
+    *     json doc doc_s send. Stop if OTA is active
     *  
     ************************************************************************************/
-    if(millis() >= time_4 + INTERVAL_4)
+    if((millis() >= time_4 + INTERVAL_4)&& (OTA != OTA_Key))
     {
         time_4 += INTERVAL_4;
-        // always send all 6 channels, only 5 for this example, later add status etc
-        doc_s["type"] = "ADC1";  // tbd  better define packet content
+        // always send all 6 channels
+        doc_s["type"] = "ADC1";  //  define packet content
         doc_s["ch0"] = chan_avrgResults[0];
         doc_s["ch1"] = chan_avrgResults[1];
         doc_s["ch2"] = chan_avrgResults[2];
         doc_s["ch3"] = chan_avrgResults[3];
         doc_s["ch4"] = chan_avrgResults[4];
+        doc_s["ch5"] = chan_avrgResults[5];
         // Send the data over UDP if  active
         if(UDP_ch_active==1)
         {
             serializeJson(doc_s, fromString);
             SendLen = strlen( fromString );
             memcpy( udpString, fromString, SendLen );
+            if(verbosePrint)
+            {
             Serial.print("sending message to: ");
             Serial.println(ReceivedFromIP);
             Serial.print("ch 0 mV: ");
-        Serial.print(chan_avrgResults[0]);
-        Serial.print("    ch 1 mV: ");
-        Serial.print(chan_avrgResults[1]);
-        Serial.print("    ch 2 mV: ");
-        Serial.print(chan_avrgResults[2]);
-        Serial.print("    ch 3 mV: ");
-        Serial.print(chan_avrgResults[3]);
-        Serial.print("    ch 4 mV: ");
-        Serial.println(chan_avrgResults[4]); 
+            Serial.print(chan_avrgResults[0]);
+            Serial.print("    ch 1 mV: ");
+            Serial.print(chan_avrgResults[1]);
+            Serial.print("    ch 2 mV: ");
+            Serial.print(chan_avrgResults[2]);
+            Serial.print("    ch 3 mV: ");
+            Serial.print(chan_avrgResults[3]);
+            Serial.print("    ch 4 mV: ");
+            Serial.println(chan_avrgResults[4]); 
+            Serial.print("    ch 5 mV: ");
+            Serial.println(chan_avrgResults[5]); 
+            }
             AsyncUDPMessage msg(strlen(fromString));
             msg.write( udpString, SendLen );
             udp.sendTo( msg, ReceivedFromIP, 5045 );
@@ -465,18 +690,17 @@ void loop() {
   
 
   /***************************************************************
-   * tbd fix bug  aanalogReadMillivolts  is not using calibration settings
    * 
    * Do conversions for active channels 0 to 4 (ADC 1)
    * Sum 16 conversions per enabled channel 
    * NumOfSamples_per_Avrg[0] sets average for all channels
    * Conversions will faster if less channels enabled
    * Calculate average after all samples are done
-   * 
+   * Stop if OTA active
    * 
    ***************************************************************/
    // msBetweenSamples[0]= 10000;   // for test comment out
-    if(millis() >= time_1 + msBetweenSamples[0])
+    if((millis() >= time_1 + msBetweenSamples[0])&&(OTA != OTA_Key))
     {
       time_1 +=msBetweenSamples[0];
          
@@ -485,10 +709,39 @@ void loop() {
       {
           for(char ii=0; ii<5;ii++)
           {
-            if (chan_enable[ii]==1)  // if active convert
+            switch (ii)
             {
-                chan_summ[ii]+=analogReadMilliVolts(ii);
-            }
+             case 0:  if (chan_enable[ii]==1)  // if active convert
+                      {
+                        adc_raw[ii] = adc1_get_raw(ADC1_CHANNEL_0);
+                        chan_summ[ii]+=esp_adc_cal_raw_to_voltage(adc_raw[ii], &adc1_chars);
+                      }
+                      break;
+             case 1:  if (chan_enable[ii]==1)  // if active convert
+                      {
+                        adc_raw[ii] = adc1_get_raw(ADC1_CHANNEL_1);
+                        chan_summ[ii]+=esp_adc_cal_raw_to_voltage(adc_raw[ii], &adc1_chars);
+                      }
+                      break;
+             case 2:  if (chan_enable[ii]==1)  // if active convert
+                      {
+                        adc_raw[ii] = adc1_get_raw(ADC1_CHANNEL_2);
+                        chan_summ[ii]+=esp_adc_cal_raw_to_voltage(adc_raw[ii], &adc1_chars);
+                      }
+                      break;
+             case 3:  if (chan_enable[ii]==1)  // if active convert
+                      {
+                        adc_raw[ii] = adc1_get_raw(ADC1_CHANNEL_3);
+                        chan_summ[ii]+=esp_adc_cal_raw_to_voltage(adc_raw[ii], &adc1_chars);
+                      }
+                      break;
+             case 4:  if (chan_enable[ii]==1)  // if active convert
+                      {
+                        adc_raw[ii] = adc1_get_raw(ADC1_CHANNEL_4);
+                        chan_summ[ii]+=esp_adc_cal_raw_to_voltage(adc_raw[ii], &adc1_chars);
+                      }
+             }
+              
           }
       }
           for(char ii=0; ii<5;ii++)
@@ -507,48 +760,61 @@ void loop() {
                  
         
     }
-     //   Other low priority tasks
-      if(millis() >= time_2 + INTERVAL_2){
+    /********************************************************
+     *  Low priority ADC2 channel 0. May interfere with wifi.
+     *  Do one sample on each pass at 16th sample calculate 
+     *  average, if the calibration is not enabled or the 
+     *  conversion results are not ESP_OK skip the sample
+     *  stop during OTA
+     ********************************************************/
+      if((millis() >= time_2 + INTERVAL_2)&&(OTA != OTA_Key))
+      {
+        esp_err_t ret1 = ESP_OK;
         time_2 +=INTERVAL_2;
-        /***********************
-         *  TBD   fix bug   ADc2_ch0  does not work creates reboot
-         *   note chan enable [5], chan sum[5]  etc are adc2_0
-         */
-        /* 
-         *  
+       
+         //may need to add  WiFi.disconnect() before ADC2 call to avoid interference
          if (chan_enable[5]==1)  // if active convert
         {
-        WiFi.disconnect(); // ensure a clean start
-        adcAttachPin(5);              //confirm how to do this for ADC2 ch0
-        analogSetPinAttenuation(5, ADC_11db);  // confirm how to do this for ADC2 ch0
-        for (char samples1=0; samples1<NumOfSamples_per_Avrg[0]; samples1++)
-        {
-            chan_summ[5]+=analogReadMilliVolts(5);
+          ret1 = adc2_get_raw(ADC2_CHANNEL_0, ADC_WIDTH_BIT_12, &adc_raw[5]);
+          if ( (cali_enable) &&  (ret1 == ESP_OK))
+          {
+              chan_summ[5]+=esp_adc_cal_raw_to_voltage(adc_raw[5], &adc1_chars);
+              ADC2_ch0_samples++;
+              if( ADC2_ch0_samples == NumOfSamples_per_Avrg[5])
+              {
+                  chan_avrgResults[5]= chan_summ[5]/NumOfSamples_per_Avrg[5];
+                  chan_summ[5]=0;
+                  ADC2_ch0_samples=0;
+              }
+          }
+        }else{
+          chan_avrgResults[5]= 0;
+                  chan_summ[5]=0;
+                  ADC2_ch0_samples=0; 
         }
-        chan_avrgResults[5]= chan_summ[5]/NumOfSamples_per_Avrg[0];
-        chan_summ[5]=0;
-      
-        //Serial.println(analogReadMilliVolts(5));
-        for (int i = 0; i < 32; ++i)
+         
+             
+     }
+
+   /*******************************************
+    * 
+    *    For future use
+    * 
+    *******************************************/
+    if(millis() >= time_3 + INTERVAL_3)
+    {
+        time_3 +=INTERVAL_3;
+        //blinkLED();
+        
+        if(verbosePrint>0)
         {
-        esid += char(EEPROM.read(i));
-        }
-        for (int i = 32; i < 96; ++i)
-        {
-        epass += char(EEPROM.read(i));
-        }
-        WiFi.begin(esid.c_str(), epass.c_str());
-        WiFi.mode(WIFI_STA);
+          verbosePrint--;
         }
         
-        */
-     }
-   
-    if(millis() >= time_3 + INTERVAL_3){
-        time_3 +=INTERVAL_3;
-       
+        
+   }
 
-    }
+    
    
     
 }
@@ -556,8 +822,7 @@ void loop() {
 /*******************************************************************
 * 
 *     Fuctions used for WiFi credentials saving and connecting
-*   to it which you do not need to change
-*   
+*     
 *******************************************************************/
 
 
@@ -582,7 +847,7 @@ bool testWifi(void)
 /*******************************************************************
 *   
 *   
-*   Start the web server
+*   Start the web server to get the new ssid and password 
 *   
 *   
 *   
@@ -594,24 +859,27 @@ bool testWifi(void)
   {
     Serial.println("WiFi connected");
   }
-   createWebServer();
+   
   // Start the server
   server.begin();
+  createWebServer();
   Serial.println("Server started");
   }
 
 /*******************************************************************
 *    
 *    
-*    Set up Access Point so user can connect as a client and access web server
+*    Set up Access Point so user can connect as a client, access the 
+*    web server and input ssid and password
 *    
 *    
 *******************************************************************/
 void setupAP(void)
 {
-  WiFi.mode(WIFI_STA);
+  
   WiFi.disconnect();
   delay(100);
+  // scan for testing
   int n = WiFi.scanNetworks();
   Serial.println("scan done");
   if (n == 0)
@@ -633,28 +901,12 @@ void setupAP(void)
       delay(10);
     }
   }
-  /*    use to display scan on credential update page
-  Serial.println("");
-  st = "<ol>";
-  for (int i = 0; i < n; ++i)
-  {
-    // Print SSID and RSSI for each network found
-    st += "<li>";
-    st += WiFi.SSID(i);
-    st += " (";
-    st += WiFi.RSSI(i);
-
-    st += ")";
-    //st += (WiFi.encryptionType(i) == ENC_TYPE_NONE) ? " " : "*";
-    st += "</li>";
-  }
-  st += "</ol>";
-  */
-  delay(100);
+ 
+   
   WiFi.macAddress(mac1);
   //   ****************  we set a new ssid ADC_ +  last 3 parts of mac **********
   //   
-    myitoa();
+    myitoa(); // generates new SSID from mac address
    Serial.println(newssid);
    
   WiFi.softAP(newssid,"");
@@ -662,7 +914,7 @@ void setupAP(void)
   launchWeb();
   Serial.print("SoftAP IP: ");
   Serial.println(WiFi.softAPIP());
-  Serial.println("Connect to SSID ADC_xxxxx");
+  Serial.println("Connect to SSID ADC_xxxxx, no password required");
   Serial.println("Go to web page and update SSID and PASW for your network");
 
 }
@@ -671,10 +923,7 @@ void setupAP(void)
 *     
 *     Create web server to input Local WiFi credentials
 *    
-*     
-*     
-*      
-*  
+*    
 *******************************************************************/
   void createWebServer()
   {
@@ -683,7 +932,7 @@ void setupAP(void)
       
      // IPAddress ip = WiFi.softAPIP();
      // String ipStr = String(ip[0]) + '.' + String(ip[1]) + '.' + String(ip[2]) + '.' + String(ip[3]);
-      content = "<!DOCTYPE html> <html>  <head><meta ame=  'viewport  ' content=  'width=device-width, initial-scale=1.0, user-scalable=no  '>  ";
+      content = "<!DOCTYPE html> <html>  <head><meta name=  'viewport  ' content=  'width=device-width, initial-scale=1.0, user-scalable=no  '>  ";
  content+= " <title>ESP WiFi Manager</title>   <style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}";
  content+= " body{margin-top: 50px;} h1 {color: #444444;margin: 30px auto 30px;}   h3 {color: #ffffff;margin-bottom: 50px;}   label{display:inline-block;width: 160px;text-align: center;font-size: 1.5rem; font-weight: bold;color: #ffffff;}";
  content+= " form{margin: 0 auto;width: 360px;padding: 1em;border: 1px solid #CCC;border-radius: 1em; background-color: #077c9f;}    input {margin: 0.5em;font-size: 1.5rem; }  "; 
@@ -692,7 +941,7 @@ void setupAP(void)
   content+= "   rgba(0, 0, 0, 0));    box-shadow: inset 2px 2px 3px rgba(255, 255, 255, .6),   inset -2px -2px 3px rgba(0, 0, 0, .6);.styled:hover {   background-color: rgba(255, 0, 0, 1);} ";
 content+= ".styled:active {    box-shadow: inset -2px -2px 3px rgba(255, 255, 255, .6), inset 2px 2px 3px rgba(0, 0, 0, .6);}  </style>  "; 
 content+= "  <meta charset=  'UTF-8  '>    </head>   <body>   <h1>Welcome to WiFi Update</h1>    <h1>ESP32C3 6 Channel ADC</h1> ";  
-content+= "       <h3>Enter local WiFi SSID&PSW</h3>    <form method='get' action='setting'> <div><label>WiFi SSID</label> <input name= 'ssid' length= 32></div> ";  
+content+= "       <h1>Enter local WiFi SSID&PSW</h1>    <form method='get' action='setting'> <div><label>WiFi SSID</label> <input name= 'ssid' length= 32></div> ";  
  content+= "   <div><label>WiFi Password </label> <input name=  'pass'  length= 32></div>  "; 
  content+= " <h3>Please Double Check Before Saving</h3>   <button class= 'favorite styled ' type= 'submit'>    SAVE</button> </form>    </body>  </html>  ";
 
@@ -788,32 +1037,7 @@ void myitoa()
 
 }
 
-/*******************************************************************
-*   tbd
-*   Functions called  to init adc1
-*   also called every time there is a change
-*   of config from a UDP message
-********************************************************************/
 
-void config_ADC(char chan, char att, char average, int msec)
-{
-  adcAttachPin(chan);
-  // convert att to ADC_xxdb
-  switch (att) {
-    case 0:
-      analogSetPinAttenuation(chan, ADC_0db);
-      break;
-    case 1:
-      analogSetPinAttenuation(chan, ADC_2_5db);
-      break;
-    case 2:
-      analogSetPinAttenuation(chan, ADC_6db);
-      break;
-    case 3:
-      analogSetPinAttenuation(chan, ADC_11db);
-      break;
-  }
-}
 
 /**********************************************************************
 *    Functions called when
@@ -833,167 +1057,3 @@ void blinkLED()
   }
 
 }
-
-
-/********************************************************************
-*    ADC2 is different, conversions when wifi is off
-*    may have to reset ESP32 so no possibility of doing average
-*    average must be done by host,
-*    conversion factor to mv must be meassured and saved on host
-*
-**********************************************************************/
-
-
-void ADC2_0()
-{
-  /*  int read_raw;
-     adc2_config_channel_atten( ADC2_CHANNEL_0, ADC_ATTEN_0db );
-     esp_err_t r = adc2_get_raw( ADC2_CHANNEL_0, ADC_WIDTH_12Bit, &read_raw);
-     if ( r == ESP_OK ) {
-         printf("%d\n", read_raw );
-     } else if ( r == ESP_ERR_TIMEOUT ) {
-         printf("ADC2 used by Wi-Fi.\n");
-         chan_avrgResults[5] =read_raw;  // non filtered results
-     }
-  */
-}
-/*
-   adc attenuation esp32-c3
-     ADC Att    ADC  Full Scale Reference Voltage
-  0    0     100 - 750 mV
-  1    2.5   100 - 1050
-  2    6     100 - 1300
-  3   11     100 - 2500
-
-
-  Voltage input on ADC 0,1,2 for test 3x 27K in series as voltage divider
-  1.2477V  ch0
-  0.8300V  ch1
-  0.4155V  ch2
-
-
-
-  #include <driver/adc.h>
-  #include <esp32-hal-adc.h>
-  //#include <WiFi.h>
-  //#include <BluetoothSerial.h>
-  //#define uS_TO_S_FACTOR 1000000ULL  // Conversion factor for micro seconds to seconds
-  //#define TIME_TO_SLEEP  5        // Time ESP32 will go to sleep (in seconds)
-
-  //RTC_DATA_ATTR int bootCount = 0;
-
-  long sumadc0,sumadc1,sumadc2;
-  float avrg_adc0, avrg_adc1,avrg_adc2;
-  int count=0;
-  void setup() {
-  //
-  Serial.begin(115200);
-  Serial.println("==================");
-  adcAttachPin(0);
-  adcAttachPin(1);
-  adcAttachPin(2);
-  //adc1_config_width(ADC_WIDTH_BIT_12);
-  //adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);
-  // adc1_config_channel_atten(ADC1_CHANNEL_1, ADC_ATTEN_DB_11);
-  // adc1_config_channel_atten(ADC1_CHANNEL_2, ADC_ATTEN_DB_11);
-
-  analogSetPinAttenuation(0, ADC_11db);
-  analogSetPinAttenuation(1, ADC_11db);
-  analogSetPinAttenuation(2, ADC_11db);
-
-
-  // sleep
-  // esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-  // Setup LEDs for no output  8 is active low, 10 is active high
-  pinMode(8, OUTPUT);
-  pinMode(10, OUTPUT);
-  digitalWrite(8, HIGH);   // turn the LED on (HIGH is the voltage level)
-  digitalWrite(10, LOW);    // turn the LED off by making the voltage LOW
-
-  }
-
-  void loop() {
-
-  int analogData0  = analogReadMilliVolts(0);
-  int analogData1  = analogReadMilliVolts(1);
-  int analogData2  = analogReadMilliVolts(2);
-  if (count < 32){
-  sumadc0+=analogData0;
-  sumadc1+=analogData1;
-  sumadc2+= analogData2;
-  count++;
-  }else{
-  avrg_adc0 =sumadc0/32;
-  avrg_adc1 =sumadc1/32;
-  avrg_adc2 =sumadc2/32;
-
-  Serial.print(avrg_adc0);
-  Serial.print("    ");
-  Serial.print(avrg_adc1);
-  Serial.print("    ");
-  Serial.println(avrg_adc2);
-  Serial.println("==================");
-  sumadc0=0;
-  sumadc1=0;
-  sumadc2= 0;
-  count =0;
-
-
-  }
-  delay(100);
-  //while(1);
-
-
-  }
-*/
-
-/*
-     add library to enable function to work
-  #include<NoDelay.h>
-
-  void ledBlink();//Must declare function before noDelay, function can not take arguments
-
-  noDelay LEDtime(1000, ledBlink);//Creats a noDelay varible set to 1000ms, will call ledBlink function
-  int LEDpin = 13;
-  int ledState = LOW;
-
-  void setup() {
-  pinMode(LEDpin, OUTPUT);
-  }
-
-  void loop() {
-    LEDtime.update();//will check if set time has past and if so will run set function
-  }
-
-  void ledBlink()
-  {
-  // if the LED is off turn it on and vice-versa:
-    if (ledState == LOW)
-      ledState = HIGH;
-    else
-      ledState = LOW;
-
-    // set the LED with the ledState of the variable:
-    digitalWrite(LEDpin, ledState);
-  }
-*/
-/*
-
-
-  Startup
-
-  SSID:Seenov21_2_4                    
-  PASSWORD:bandittaichi                                                    
-  ncncncConnected to Seenov21_2_4                     Successfully
-  ESP Board MAC Address:  3C:61:05:0C:85:A0
-  Local IP: 172.16.1.71
-  SoftAP IP: 192.168.4.1
-  end of setup
-  loop
-  UDP Packet Type: Unicast, From: 172.16.0.82:5044, To: 172.16.1.71:5044, Length: 6, Data: Master
-  UDP Packet Type: Unicast, From: 172.16.0.82:5044, To: 172.16.1.71:5044, Length: 6, Data: Master
-  UDP Packet Type: Broadcast, From: 172.16.0.82:5044, To: 172.16.1.255:5044, Length: 6, Data: Master
-  UDP Packet Type: Broadcast, From: 172.16.0.82:5044, To: 172.16.1.255:5044, Length: 6, Data: Master
-  UDP Packet Type: Broadcast, From: 172.16.0.82:5044, To: 172.16.1.255:5044, Length: 6, Data: Master
-  UDP Packet Type: Broadcast, From: 172.16.0.82:5044, To: 172.16.1.255:5044, Length: 6, Data: Master
-*/
