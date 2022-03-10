@@ -19,8 +19,8 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 850,
-        "y": 440,
+        "x": 2250,
+        "y": 600,
         "wires": []
     },
     {
@@ -626,7 +626,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 1670,
+        "x": 1630,
         "y": 760,
         "wires": [
             [
@@ -660,7 +660,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 1670,
+        "x": 1630,
         "y": 820,
         "wires": [
             [
@@ -694,7 +694,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 1670,
+        "x": 1630,
         "y": 1000,
         "wires": [
             [
@@ -728,7 +728,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 1670,
+        "x": 1630,
         "y": 940,
         "wires": [
             [
@@ -745,12 +745,12 @@
         "width": 0,
         "height": 0,
         "name": "",
-        "label": "Enable ADC Channels 0 to 4",
+        "label": "Enable ADC Channels 0 to 5",
         "format": "{{msg.payload}}",
         "layout": "col-center",
         "className": "",
         "x": 1700,
-        "y": 720,
+        "y": 600,
         "wires": []
     },
     {
@@ -758,7 +758,7 @@
         "type": "function",
         "z": "e59b8a9c7eab3c4f",
         "name": "Format enable/disable messages",
-        "func": "var configMsg= flow.get('configMsg') || {};\nvar device1= flow.get('device1') || {};\nconfigMsg.type=device1.type;\nconfigMsg.name = device1.name;\nif(msg.topic == \"ch0\"){\n    configMsg.ench0 =msg.payload;\n}\nif(msg.topic == \"ch1\"){\n    configMsg.ench1 =msg.payload;\n}\nif(msg.topic == \"ch2\"){\n    configMsg.ench2 =msg.payload;\n}\nif(msg.topic == \"ch3\"){\n    configMsg.ench3 =msg.payload;\n}\nif(msg.topic == \"ch4\"){\n    configMsg.ench4 =msg.payload;\n}\n//if(msg.topic == \"ch5\"){\n  //  configMsg.ench5 =msg.payload;\n//}\nif(msg.topic === \"delay\"){\n    configMsg.delay =msg.payload;\n}\n\nflow.set('configMsg', configMsg);\n//if( msg.topic== \"send\")\n//{\n     msg.payload = configMsg;\n    return msg;\n//}\n   \n\n",
+        "func": "var configMsg= flow.get('configMsg') || {};\nvar device1= flow.get('device1') || {};\nconfigMsg.type=device1.type;\nconfigMsg.name = device1.name;\nconfigMsg.category = 'setting';\nif(msg.topic == \"ch0\"){\n    configMsg.ench0 =msg.payload;\n}\nif(msg.topic == \"ch1\"){\n    configMsg.ench1 =msg.payload;\n}\nif(msg.topic == \"ch2\"){\n    configMsg.ench2 =msg.payload;\n}\nif(msg.topic == \"ch3\"){\n    configMsg.ench3 =msg.payload;\n}\nif(msg.topic == \"ch4\"){\n    configMsg.ench4 =msg.payload;\n}\nif(msg.topic == \"ch5\"){\n    configMsg.ench5 =msg.payload;\n}\nif(msg.topic === \"delay\"){\n    configMsg.delay =msg.payload;\n}\nif(msg.topic === \"ota\"){\n    configMsg.ota =1234;\n}\nif(msg.topic === \"dac\"){\n    configMsg.dac =msg.payload;\n}\nif(msg.topic === \"led2\"){\n    configMsg.led2 =msg.payload;\n}\nif(msg.topic === \"io7\"){\n    configMsg.io7 =msg.payload;\n}\nif(msg.topic === \"io18\"){\n    configMsg.io18 =msg.payload;\n}\nif(msg.topic === \"io19\"){\n    configMsg.io19 =msg.payload;\n}\nif(msg.topic == \"init\"){\n configMsg.name = \"noName\";\n configMsg.ench0 = 100;\n configMsg.ench1 = 100;\n configMsg.ench2 = 100;\n configMsg.ench3 = 100;\n configMsg.ench4 = 100;\n configMsg.ench5 = 99;\n configMsg.delay = 100;\n configMsg.ota = 10;\n configMsg.dac = 0;\n configMsg.led2 = 0;\n configMsg.io7 = 0;\n configMsg.io18 = 0;\n configMsg.io19 = 0;\n}\n\nflow.set('configMsg', configMsg);\n//if( msg.topic== \"send\")\n//{\n     msg.payload = configMsg;\n    return msg;\n//}\n   \n\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -768,7 +768,8 @@
         "y": 900,
         "wires": [
             [
-                "a05b9f0112cfaffa"
+                "a05b9f0112cfaffa",
+                "ca5f7c412c73f22f"
             ]
         ]
     },
@@ -798,7 +799,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 1670,
+        "x": 1630,
         "y": 880,
         "wires": [
             [
@@ -866,7 +867,7 @@
         "width": "4",
         "height": "1",
         "name": "Dispaly adc ch5",
-        "label": "ch5 TBD",
+        "label": "ADC ch5 (mV)",
         "format": "{{msg.payload}}",
         "layout": "row-left",
         "className": "",
@@ -1023,42 +1024,13 @@
         ]
     },
     {
-        "id": "c776484bce57cdf2",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "ch0",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1420,
-        "y": 760,
-        "wires": [
-            [
-                "c869f388a7527f93"
-            ]
-        ]
-    },
-    {
         "id": "a4931875a1d07a25",
         "type": "comment",
         "z": "e59b8a9c7eab3c4f",
         "name": "Init adc enable",
         "info": "Init variable configMsg 1 sec after power up\nIf link is up send msg to ADC over UDP\nif not first toggle of ADC channel enable send \nthe info",
         "x": 1500,
-        "y": 1280,
+        "y": 1360,
         "wires": []
     },
     {
@@ -1079,7 +1051,7 @@
         "sendOnBlur": false,
         "className": "",
         "topicType": "str",
-        "x": 1580,
+        "x": 1540,
         "y": 1120,
         "wires": [
             [
@@ -1092,16 +1064,16 @@
         "type": "ui_text",
         "z": "e59b8a9c7eab3c4f",
         "group": "ea6e9bbec169f855",
-        "order": 1,
+        "order": 11,
         "width": 0,
         "height": 0,
         "name": "",
-        "label": "Channel Gain TBD",
+        "label": "Channel Attenuation fixed at 11db",
         "format": "{{msg.payload}}",
         "layout": "col-center",
         "className": "",
-        "x": 1670.56005859375,
-        "y": 678.6799926757812,
+        "x": 1720,
+        "y": 560,
         "wires": []
     },
     {
@@ -1144,7 +1116,7 @@
         "type": "comment",
         "z": "e59b8a9c7eab3c4f",
         "name": "Revision history",
-        "info": " 6 Feb 2022 revision 1",
+        "info": " 6 Feb 2022 revision 1\n 9 March rev 2",
         "x": 220,
         "y": 1000,
         "wires": []
@@ -1179,161 +1151,6 @@
         ]
     },
     {
-        "id": "6ec4a8a486a0934b",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "ch1",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1420,
-        "y": 820,
-        "wires": [
-            [
-                "2a2b042d6eb7394c"
-            ]
-        ]
-    },
-    {
-        "id": "a32423741dfa392e",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "ch2",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1420,
-        "y": 880,
-        "wires": [
-            [
-                "01a8e40c51456e21"
-            ]
-        ]
-    },
-    {
-        "id": "46376c8713dbe313",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "ch3",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1420,
-        "y": 940,
-        "wires": [
-            [
-                "32ed194ec4ed7280"
-            ]
-        ]
-    },
-    {
-        "id": "13adc20d5fcc1470",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "ch4",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1420,
-        "y": 1000,
-        "wires": [
-            [
-                "98c3eb3b51bd84bb"
-            ]
-        ]
-    },
-    {
-        "id": "9e3290d531cff781",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "ADC chan enable Init",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "delay",
-        "payload": "100",
-        "payloadType": "num",
-        "x": 1320,
-        "y": 1120,
-        "wires": [
-            [
-                "b1630ea3b18e9c40"
-            ]
-        ]
-    },
-    {
-        "id": "abff888e4b897f0e",
-        "type": "comment",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "Channel 5",
-        "info": "Channel 5 is ADC2 ch0 not yet implemented",
-        "x": 1620,
-        "y": 1060,
-        "wires": []
-    },
-    {
         "id": "d0349c3507f2232a",
         "type": "ui_toast",
         "z": "e59b8a9c7eab3c4f",
@@ -1351,77 +1168,6 @@
         "x": 1010,
         "y": 320,
         "wires": []
-    },
-    {
-        "id": "de29d175d6603292",
-        "type": "persist in",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "Save device1",
-        "storageNode": "4fba2c2d9dd00dbc",
-        "x": 980,
-        "y": 1160,
-        "wires": []
-    },
-    {
-        "id": "dae75c3375f20f78",
-        "type": "persist in",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "Save Config1",
-        "storageNode": "92d9243d59f819dc",
-        "x": 989.9999389648438,
-        "y": 1235.5555419921875,
-        "wires": []
-    },
-    {
-        "id": "7a97e4bb4b049be2",
-        "type": "function",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "Save data to SD card",
-        "func": "// at regular intervals save the data to SD card\nvar device1= flow.get('device1') || {};\nvar configMsg= flow.get('configMsg')|| {};\n\n    msg1={payload:device1};\n    msg2={payload:configMsg};\n    return [msg1,msg2];\n",
-        "outputs": 2,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 700,
-        "y": 1200,
-        "wires": [
-            [
-                "de29d175d6603292"
-            ],
-            [
-                "dae75c3375f20f78"
-            ]
-        ]
-    },
-    {
-        "id": "43de8d2d6209705b",
-        "type": "inject",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "86400",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 470,
-        "y": 1200,
-        "wires": [
-            [
-                "7a97e4bb4b049be2"
-            ]
-        ]
     },
     {
         "id": "90b778247e011b1f",
@@ -1446,73 +1192,304 @@
         "x": 470,
         "y": 1260,
         "wires": [
-            [
-                "7a97e4bb4b049be2"
-            ]
-        ]
-    },
-    {
-        "id": "eb554bcab4cda77d",
-        "type": "persist out",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "device1",
-        "storageNode": "4fba2c2d9dd00dbc",
-        "x": 560,
-        "y": 1320,
-        "wires": [
-            [
-                "cbb3acdb471667f6"
-            ]
-        ]
-    },
-    {
-        "id": "cbb3acdb471667f6",
-        "type": "function",
-        "z": "e59b8a9c7eab3c4f",
-        "name": "Restore data from SD card",
-        "func": "// at regular intervals save the data to SD card\nvar device1= flow.get('device1') || {};\n \n    device1=msg.payload;\n    flow.set('device1', device1);\n  ",
-        "outputs": 2,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 800,
-        "y": 1320,
-        "wires": [
-            [],
             []
         ]
     },
     {
-        "id": "7cec668782c05853",
-        "type": "persist out",
+        "id": "f47c247f28e9962e",
+        "type": "inject",
         "z": "e59b8a9c7eab3c4f",
-        "name": "config1",
-        "storageNode": "92d9243d59f819dc",
-        "x": 560,
-        "y": 1380,
+        "name": "ADC  Init all",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "3",
+        "topic": "init",
+        "payload": "100",
+        "payloadType": "num",
+        "x": 1630,
+        "y": 720,
         "wires": [
             [
-                "41180c41369ca011"
+                "71d30a4369e5147e"
             ]
         ]
     },
     {
-        "id": "41180c41369ca011",
+        "id": "d2efd97a28872a54",
+        "type": "ui_switch",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "label": "Ch 5",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 7,
+        "width": "3",
+        "height": "1",
+        "passthru": true,
+        "decouple": "false",
+        "topic": "ch5",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "100",
+        "onvalueType": "num",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "99",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1630,
+        "y": 1060,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
+        ]
+    },
+    {
+        "id": "fca358dae505ccab",
+        "type": "ui_button",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "ota",
+        "group": "0a29906b95cb11fb",
+        "order": 5,
+        "width": "5",
+        "height": "3",
+        "passthru": true,
+        "label": "START OTA FIRMWARE UPDATE",
+        "tooltip": "Start OTA Firmware update",
+        "color": "Red",
+        "bgcolor": "",
+        "className": "",
+        "icon": "get_app",
+        "payload": "1234",
+        "payloadType": "num",
+        "topic": "ota",
+        "topicType": "str",
+        "x": 1650,
+        "y": 660,
+        "wires": [
+            [
+                "71d30a4369e5147e",
+                "97d01fcae167a024"
+            ]
+        ]
+    },
+    {
+        "id": "97d01fcae167a024",
+        "type": "delay",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1820,
+        "y": 660,
+        "wires": [
+            [
+                "2e3581c74563bbfd"
+            ]
+        ]
+    },
+    {
+        "id": "2e3581c74563bbfd",
         "type": "function",
         "z": "e59b8a9c7eab3c4f",
-        "name": "Restore data from SD card",
-        "func": "// at regular intervals save the data to SD card\nvar configMsg= flow.get('configMsg') || {};\n \n    configMsg=msg.payload;\n    flow.set('configMsg', configMsg);\n  ",
-        "outputs": 2,
+        "name": "Reset ota",
+        "func": "var configMsg= flow.get('configMsg') || {};\nconfigMsg.ota = 10;\nflow.set('configMsg', configMsg);\n",
+        "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 800,
-        "y": 1380,
+        "x": 1980,
+        "y": 660,
         "wires": [
-            [],
             []
+        ]
+    },
+    {
+        "id": "8e2187cabbddda51",
+        "type": "ui_slider",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "DAC setting",
+        "label": "DAC setting",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 9,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "outs": "end",
+        "topic": "dac",
+        "topicType": "str",
+        "min": 0,
+        "max": "255",
+        "step": 1,
+        "className": "",
+        "x": 1610,
+        "y": 1180,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
+        ]
+    },
+    {
+        "id": "cd4f5d27bb5d4406",
+        "type": "ui_switch",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "label": "LED2",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 10,
+        "width": "3",
+        "height": "1",
+        "passthru": true,
+        "decouple": "false",
+        "topic": "led2",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "1",
+        "onvalueType": "num",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "0",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1630,
+        "y": 1240,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
+        ]
+    },
+    {
+        "id": "01bac07ade879126",
+        "type": "ui_switch",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "label": "IO_7",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 10,
+        "width": "3",
+        "height": "1",
+        "passthru": true,
+        "decouple": "false",
+        "topic": "io7",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "1",
+        "onvalueType": "num",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "0",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1650,
+        "y": 1300,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
+        ]
+    },
+    {
+        "id": "ef459caa5377512d",
+        "type": "ui_switch",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "label": "IO_18",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 10,
+        "width": "3",
+        "height": "1",
+        "passthru": true,
+        "decouple": "false",
+        "topic": "io18",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "1",
+        "onvalueType": "num",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "0",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1670,
+        "y": 1360,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
+        ]
+    },
+    {
+        "id": "6fbdd03793e9b184",
+        "type": "ui_switch",
+        "z": "e59b8a9c7eab3c4f",
+        "name": "",
+        "label": "IO_19",
+        "tooltip": "",
+        "group": "ea6e9bbec169f855",
+        "order": 10,
+        "width": "3",
+        "height": "1",
+        "passthru": true,
+        "decouple": "false",
+        "topic": "io19",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "1",
+        "onvalueType": "num",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "0",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1670,
+        "y": 1420,
+        "wires": [
+            [
+                "71d30a4369e5147e"
+            ]
         ]
     },
     {
@@ -1543,7 +1520,7 @@
         "name": "Settings",
         "tab": "b7f11c02414f1499",
         "order": 1,
-        "disp": true,
+        "disp": false,
         "width": "6",
         "collapse": false,
         "className": ""
@@ -1560,16 +1537,15 @@
         "className": ""
     },
     {
-        "id": "4fba2c2d9dd00dbc",
-        "type": "persist-store",
-        "filename": "~/.node-red/device1.json",
-        "interval": "86400"
-    },
-    {
-        "id": "92d9243d59f819dc",
-        "type": "persist-store",
-        "filename": "~/.node-red/config1.json",
-        "interval": "86400"
+        "id": "0a29906b95cb11fb",
+        "type": "ui_group",
+        "name": "OTA",
+        "tab": "fead6eaa820fe85d",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
     },
     {
         "id": "5008791d52cd4ff5",
@@ -1600,6 +1576,14 @@
         "type": "ui_tab",
         "name": "Documentation",
         "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "fead6eaa820fe85d",
+        "type": "ui_tab",
+        "name": "OTA",
+        "icon": "get_app",
         "disabled": false,
         "hidden": false
     }
