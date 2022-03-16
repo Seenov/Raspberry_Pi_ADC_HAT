@@ -10,7 +10,7 @@ In the root directory the file "esp32c3setup arduino" show the setting under Too
 
 <b>Documentation</b>
 
-<a href="https://seenov.com/category/getting-started/"><b>Getting </b><b>S</b><b>tarted</b></a>
+<a href="https://seenov.com/2022/03/14/getting_started_6_channel_esp32c3_adc/"><b>Getting </b><b>S</b><b>tarted</b></a>
 
 <a href="https://seenov.com/wp-content/uploads/2022/03/ESP32C3-ADC-hat-specifications.pdf">Specifications</a>
 
