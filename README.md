@@ -7,6 +7,8 @@ The list of dependencies for this project are in the file "packages.json"
 
 For Arduino use the sketch in the directory  "RPI_ADC_Hat_analognwifi_rev1"
 In the root directory the file "esp32c3setup arduino" show the setting under Tools in the arduino IDE (1.8.16)
+The ino file rev2 introduces a self-test feature we use to ensure each unit is functionning properly. DO NOT USE THIS VERSION
+The .ino file rev3 is used to test communications with a python script. There is an issue with UDP port usage with this version. It transmitts its messages on port 50450 instead of 5045. It listens on port 5044.
 
 <b>Documentation</b>
 
