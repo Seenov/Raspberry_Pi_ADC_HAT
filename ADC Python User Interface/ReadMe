@@ -1,0 +1,29 @@
+#################   INSTRUCTIONS  #################
+Required files (all in same directory):
+ADC_UI_Beta1.py
+MQueues.py
+_support_Beta1.py
+Threads.py
+
+Install CustomTkInter  link: https://github.com/TomSchimansky/CustomTkinter
+pip3 install customtkinter
+A copy of the customtkinter folder from the Github repository is placed in the 
+same folder as this script in case you cannot use pip3
+
+-  Connect power to the  ESP32C3 ADC Hat and wait for the Green LED to turn on.
+-  The ADC will be in Hotspot mode. Using a WiFi enabled device, phone, tablet
+   or Raspberry Pi. Connect to the Network ADC_xxx, xxx is part of the mac address
+   of the ADC. Ignore no Internet messages.
+-  Navigate to the Page 192.168.4.1  and enter the SSID and Password of your WiFi
+-  The ADC will reboot and the green LED will turn off. If not, retry the previous steps.
+-  Run the ADC_UI_Beta1.py python script. A control panel window will open in the center of the screen.
+-  The scrit should find the ADC. Enable the ADC channels and you should see the voltages
+   being displayed.
+   
+- Known issues: at startup ADC ch 0 may display a previous value instead of 0 mV
+                Sliders are not very responsive on Raspberry PI computers.
+                The Seenov Logo is not displayed
+
+-  Find more information at www.seenov.com
+-  email us at info@seenov.com for support.
+
