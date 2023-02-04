@@ -347,13 +347,15 @@ def OTA_command():
      global configmsg
      global remote_ip
      configmsg["ota"]=1234
+     configmsg["category"] = "setting"  
      config_msg= json.dumps(configmsg)
      config_json_msg = bytes( config_msg, 'utf-8')
      server.sendto(config_json_msg, (remote_ip, 5044))  #server.sendto(config_json_msg, (device1["localip"] , 5044))    #server.sendto(config_json_msg, ('<broadcast>', 5044))  
      configmsg["ota"]=10   
      textbox.delete("0.0","end")
-     textbox.insert("0.0","OTA message sent!")
-     print("OTA message sent!")
+     textbox.insert("0.0","OTA message sent!  to ")   
+     textbox.insert("42.0",remote_ip)
+     print("OTA message sent! to ", remote_ip)
      
 def switch_command():
     global configmsg, device1
